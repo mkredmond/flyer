@@ -8,5 +8,3 @@
 	@include('flyers.forms.form')
 </form>
 @stop
-
-
