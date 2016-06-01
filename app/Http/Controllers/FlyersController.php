@@ -2,13 +2,21 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-
 use App\Flyer;
+use App\Photo;
 use App\Http\Requests\FlyerRequest;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 
 class FlyersController extends Controller
 {
+    function __construct()
+    {
+        $this->middleware('auth', ['except' => ['show']]);
+
+        parent::__construct();
+    }
+
     /**
      * Display a listing of the resource.
      *
@@ -26,7 +34,6 @@ class FlyersController extends Controller
      */
     public function create()
     {
-        flash()->overlay('Hooray!!!', 'Flyer was created!');
         return view('flyers.create');
     }
 
@@ -37,9 +44,10 @@ class FlyersController extends Controller
      * @return \Illuminate\Http\Response
      */
     public function store(FlyerRequest $request)
-    {  
-        Flyer::create($request->all());
-        flash()->success('Success', 'Flyer was created!');
+    {
+        if (Flyer::create($request->all())) {
+            flash()->success('Success!', 'Your flyer was created.');
+        }
         return back();
     }
 
@@ -49,9 +57,55 @@ class FlyersController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function show($id)
+    public function show($zip, $street)
     {
-        //
+        $flyer = Flyer::locatedAt($zip, $street);
+
+        return view('flyers.show', compact('flyer'));
+    }
+
+    /**
+     * [addPhoto description]
+     * @param [type]  $zip     [description]
+     * @param [type]  $street  [description]
+     * @param Request $request [description]
+     */
+    public function addPhoto($zip, $street, Request $request)
+    {
+        $this->validate($request, [
+            'photo' => 'required:mimes:jpg,jpeg,png,bmp'
+        ]);
+
+        $flyer = Flyer::locatedAt($zip, $street);
+
+        if(! $flyer->ownedBy($this->user)){
+           return $this->unauthorized($request);
+        }
+
+        $photo = $this->makePhoto($request->file('photo'));
+        $flyer->addPhoto($photo);
+    }
+
+    /**
+     * [unauthorized description]
+     * @param  Request $request [description]
+     * @return [type]           [description]
+     */
+    protected function unauthorized(Request $request)
+    {
+        if($request->ajax()){
+            return response(['message' => 'No Way.'], 403);
+        }
+
+        flash()->error('Denied', 'No way!');
+
+        return redirect('/');
+    }
+
+    public function makePhoto(UploadedFile $file)
+    {
+        return Photo::named($file->getClientOriginalName())
+                ->move($file);
     }
 
     /**
